@@ -272,6 +272,37 @@ async function renderUrlToImageAsync(browser, pageConfig, url, path) {
         }`
     });
 
+    const settleTime = Number(pageConfig.renderingSettleTime);
+    if (settleTime > 0) {
+      console.log(`Waiting for DOM to stabilize (settle time: ${settleTime}ms)...`);
+      await page.evaluate((settleMs) => {
+        return new Promise((resolve) => {
+          let timer = null;
+          const maxTimeout = setTimeout(resolve, 30000);
+          const observer = new MutationObserver(() => {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => {
+              observer.disconnect();
+              clearTimeout(maxTimeout);
+              resolve();
+            }, settleMs);
+          });
+          observer.observe(document, {
+            attributes: true,
+            childList: true,
+            subtree: true,
+            characterData: true
+          });
+          // If DOM is already stable, resolve after settleMs
+          timer = setTimeout(() => {
+            observer.disconnect();
+            clearTimeout(maxTimeout);
+            resolve();
+          }, settleMs);
+        });
+      }, settleTime);
+    }
+
     if (pageConfig.renderingDelay > 0) {
       await page.waitForTimeout(pageConfig.renderingDelay);
     }

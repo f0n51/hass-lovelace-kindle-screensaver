@@ -20,6 +20,7 @@ function getPagesConfig() {
         `output/cover${suffix}`
       ),
       renderingDelay: getEnvironmentVariable("RENDERING_DELAY", suffix) || 0,
+      renderingSettleTime: getEnvironmentVariable("RENDERING_SETTLE_TIME", suffix) || 250,
       renderingScreenSize: {
         height:
           getEnvironmentVariable("RENDERING_SCREEN_HEIGHT", suffix) || 800,
