@@ -5,6 +5,10 @@ bashio::log.info "Loading config..."
 export HA_BASE_URL="$(bashio::config 'HA_BASE_URL')"
 export HA_SCREENSHOT_URL=$(bashio::config 'HA_SCREENSHOT_URL')
 export HA_ACCESS_TOKEN="$(bashio::config 'HA_ACCESS_TOKEN')"
+
+echo "[run.sh] HA_BASE_URL=${HA_BASE_URL}"
+echo "[run.sh] HA_SCREENSHOT_URL=${HA_SCREENSHOT_URL}"
+echo "[run.sh] HA_ACCESS_TOKEN length=${#HA_ACCESS_TOKEN}"
 export LANGUAGE=$(bashio::config 'LANGUAGE')
 export CRON_JOB=$(bashio::config 'CRON_JOB')
 export RENDERING_TIMEOUT=$(bashio::config 'RENDERING_TIMEOUT')
