@@ -283,56 +283,64 @@ async function renderUrlToImageAsync(browser, pageConfig, url, path) {
       console.log(`Waiting for DOM to stabilize (settle time: ${settleTime}ms)...`);
       await page.evaluate((settleMs) => {
         return new Promise((resolve) => {
+          const observed = new WeakSet();
           const observers = [];
           let timer = null;
+          let pollId = null;
+          let done = false;
 
-          const maxTimeout = setTimeout(() => {
+          const maxTimeout = setTimeout(finish, 30000);
+
+          function finish() {
+            if (done) return;
+            done = true;
+            if (pollId) clearTimeout(pollId);
+            if (timer) clearTimeout(timer);
+            clearTimeout(maxTimeout);
             observers.forEach(o => o.disconnect());
             resolve();
-          }, 30000);
+          }
 
           function resetTimer() {
+            if (done) return;
             if (timer) clearTimeout(timer);
-            timer = setTimeout(() => {
-              observers.forEach(o => o.disconnect());
-              clearTimeout(maxTimeout);
-              resolve();
-            }, settleMs);
+            timer = setTimeout(finish, settleMs);
           }
 
           function observeRoot(root) {
-            const observer = new MutationObserver(resetTimer);
-            observer.observe(root, {
+            if (observed.has(root)) return false;
+            observed.add(root);
+            const obs = new MutationObserver(resetTimer);
+            obs.observe(root, {
               attributes: true,
               childList: true,
               subtree: true,
               characterData: true
             });
-            observers.push(observer);
+            observers.push(obs);
+            return true;
           }
 
-          // Recursively observe all existing shadow roots
-          function traverseAndObserve(root) {
-            observeRoot(root);
+          function scanAndObserve(root) {
+            let foundNew = observeRoot(root);
             const elements = root.querySelectorAll ? root.querySelectorAll('*') : [];
             for (const el of elements) {
               if (el.shadowRoot) {
-                traverseAndObserve(el.shadowRoot);
+                if (scanAndObserve(el.shadowRoot)) foundNew = true;
               }
             }
+            return foundNew;
           }
 
-          // Intercept future shadow root creation (e.g. lazy-loaded cards)
-          const originalAttachShadow = Element.prototype.attachShadow;
-          Element.prototype.attachShadow = function(init) {
-            const shadowRoot = originalAttachShadow.call(this, init);
-            observeRoot(shadowRoot);
-            resetTimer();
-            return shadowRoot;
-          };
+          // Poll for newly created shadow roots every 100ms
+          function poll() {
+            if (done) return;
+            const foundNew = scanAndObserve(document);
+            if (foundNew) resetTimer();
+            pollId = setTimeout(poll, 100);
+          }
 
-          // Start observing everything currently in the DOM
-          traverseAndObserve(document);
+          poll();
           resetTimer();
         });
       }, settleTime);
