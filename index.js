@@ -12,6 +12,11 @@ const gm = require("gm");
 const batteryStore = {};
 
 (async () => {
+  console.log("[config] HA_BASE_URL =", process.env.HA_BASE_URL);
+  console.log("[config] HA_SCREENSHOT_URL =", process.env.HA_SCREENSHOT_URL);
+  console.log("[config] HA_ACCESS_TOKEN length =", process.env.HA_ACCESS_TOKEN ? process.env.HA_ACCESS_TOKEN.length : 0);
+  console.log("[config] pages.length =", config.pages.length);
+
   if (config.pages.length === 0) {
     return console.error("Please check your configuration");
   }
