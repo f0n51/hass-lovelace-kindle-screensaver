@@ -1,18 +1,21 @@
-FROM node:16-alpine3.17
+ARG BUILD_FROM
+FROM ${BUILD_FROM}
 
 WORKDIR /app
 
 RUN apk add --no-cache \
     chromium \
     nss \
-    freetype \    
+    freetype \
     font-noto-emoji \
     font-noto-cjk \
     freetype-dev \
     harfbuzz \
     ca-certificates \
     ttf-freefont \
-    imagemagick
+    imagemagick \
+    nodejs \
+    npm
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
@@ -20,11 +23,13 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 
 COPY package*.json ./
 COPY local.conf /etc/fonts/local.conf
+COPY *.js ./
 
 RUN npm ci
 
-COPY *.js ./
+COPY run.sh /
+RUN chmod a+x /run.sh
 
 EXPOSE 5000
 
-CMD ["npm", "start"]
+CMD ["/run.sh"]
