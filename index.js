@@ -45,6 +45,7 @@ const batteryStore = {};
   console.log(`Visiting '${config.baseUrl}' to login...`);
   let page = await browser.newPage();
   await page.goto(config.baseUrl, {
+    waitUntil: "networkidle2",
     timeout: config.renderingTimeout
   });
 
