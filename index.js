@@ -283,28 +283,57 @@ async function renderUrlToImageAsync(browser, pageConfig, url, path) {
       console.log(`Waiting for DOM to stabilize (settle time: ${settleTime}ms)...`);
       await page.evaluate((settleMs) => {
         return new Promise((resolve) => {
+          const observers = [];
           let timer = null;
-          const maxTimeout = setTimeout(resolve, 30000);
-          const observer = new MutationObserver(() => {
+
+          const maxTimeout = setTimeout(() => {
+            observers.forEach(o => o.disconnect());
+            resolve();
+          }, 30000);
+
+          function resetTimer() {
             if (timer) clearTimeout(timer);
             timer = setTimeout(() => {
-              observer.disconnect();
+              observers.forEach(o => o.disconnect());
               clearTimeout(maxTimeout);
               resolve();
             }, settleMs);
-          });
-          observer.observe(document, {
-            attributes: true,
-            childList: true,
-            subtree: true,
-            characterData: true
-          });
-          // If DOM is already stable, resolve after settleMs
-          timer = setTimeout(() => {
-            observer.disconnect();
-            clearTimeout(maxTimeout);
-            resolve();
-          }, settleMs);
+          }
+
+          function observeRoot(root) {
+            const observer = new MutationObserver(resetTimer);
+            observer.observe(root, {
+              attributes: true,
+              childList: true,
+              subtree: true,
+              characterData: true
+            });
+            observers.push(observer);
+          }
+
+          // Recursively observe all existing shadow roots
+          function traverseAndObserve(root) {
+            observeRoot(root);
+            const elements = root.querySelectorAll ? root.querySelectorAll('*') : [];
+            for (const el of elements) {
+              if (el.shadowRoot) {
+                traverseAndObserve(el.shadowRoot);
+              }
+            }
+          }
+
+          // Intercept future shadow root creation (e.g. lazy-loaded cards)
+          const originalAttachShadow = Element.prototype.attachShadow;
+          Element.prototype.attachShadow = function(init) {
+            const shadowRoot = originalAttachShadow.call(this, init);
+            observeRoot(shadowRoot);
+            resetTimer();
+            return shadowRoot;
+          };
+
+          // Start observing everything currently in the DOM
+          traverseAndObserve(document);
+          resetTimer();
         });
       }, settleTime);
     }
