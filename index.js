@@ -270,6 +270,20 @@ async function renderUrlToImageAsync(browser, pageConfig, url, path) {
       timeout: Math.max(config.renderingTimeout - navigateTimespan, 1000)
     });
 
+    // Wait for HA WebSocket to connect and deliver initial state + theme
+    const elapsedBeforeHass = new Date().valueOf() - startTime;
+    await page.waitForFunction(
+      () => {
+        try {
+          const ha = document.querySelector("home-assistant");
+          return ha && ha.hass && Object.keys(ha.hass.states).length > 0;
+        } catch (e) {
+          return false;
+        }
+      },
+      { timeout: Math.max(config.renderingTimeout - elapsedBeforeHass, 1000) }
+    );
+
     await page.addStyleTag({
       content: `
         body {
@@ -278,72 +292,11 @@ async function renderUrlToImageAsync(browser, pageConfig, url, path) {
         }`
     });
 
+    // Wait for card_mod and other async style injectors to run after HA is ready
     const settleTime = Number(pageConfig.renderingSettleTime);
     if (settleTime > 0) {
-      console.log(`Waiting for DOM to stabilize (settle time: ${settleTime}ms)...`);
-      await page.evaluate((settleMs) => {
-        return new Promise((resolve) => {
-          const observed = new WeakSet();
-          const observers = [];
-          let timer = null;
-          let pollId = null;
-          let done = false;
-
-          const maxTimeout = setTimeout(finish, 30000);
-
-          function finish() {
-            if (done) return;
-            done = true;
-            if (pollId) clearTimeout(pollId);
-            if (timer) clearTimeout(timer);
-            clearTimeout(maxTimeout);
-            observers.forEach(o => o.disconnect());
-            resolve();
-          }
-
-          function resetTimer() {
-            if (done) return;
-            if (timer) clearTimeout(timer);
-            timer = setTimeout(finish, settleMs);
-          }
-
-          function observeRoot(root) {
-            if (observed.has(root)) return false;
-            observed.add(root);
-            const obs = new MutationObserver(resetTimer);
-            obs.observe(root, {
-              attributes: true,
-              childList: true,
-              subtree: true,
-              characterData: true
-            });
-            observers.push(obs);
-            return true;
-          }
-
-          function scanAndObserve(root) {
-            let foundNew = observeRoot(root);
-            const elements = root.querySelectorAll ? root.querySelectorAll('*') : [];
-            for (const el of elements) {
-              if (el.shadowRoot) {
-                if (scanAndObserve(el.shadowRoot)) foundNew = true;
-              }
-            }
-            return foundNew;
-          }
-
-          // Poll for newly created shadow roots every 100ms
-          function poll() {
-            if (done) return;
-            const foundNew = scanAndObserve(document);
-            if (foundNew) resetTimer();
-            pollId = setTimeout(poll, 100);
-          }
-
-          poll();
-          resetTimer();
-        });
-      }, settleTime);
+      console.log(`Waiting ${settleTime}ms for card_mod and theme to settle...`);
+      await new Promise((resolve) => setTimeout(resolve, settleTime));
     }
 
     if (pageConfig.renderingDelay > 0) {
